@@ -1,4 +1,5 @@
-pyinstaller --onefile --noconfirm --add-data "dist\copy_mal.exe;." --add-data "dist\legit.exe;." C:\Users\6lady\feralka\Inject-EXE\include\extra.py  
+pyinstaller --onefile --add-data "include\extra.py;include" -n inject-EXE C:\Users\6lady\feralka\Inject-EXE\inject-EXE.py
 
 
-pyinstaller --onefile --add-data "copy_mal.exe;." --add-data "legit.exe;." -n inject-EXE C:\Users\6lady\feralka\Inject-EXE\include\extra.py
+pyinstaller --onefile --noconsole inject-EXE.py
+

